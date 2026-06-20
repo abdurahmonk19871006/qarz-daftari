@@ -1,0 +1,48 @@
+name: APK yasash
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kodni olish
+        uses: actions/checkout@v4
+
+      - name: Node.js o'rnatish
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Java o'rnatish
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Kutubxonalarni o'rnatish
+        run: npm install
+
+      - name: Veb-ilovani qurish
+        run: npm run build
+
+      - name: Android platformasini qo'shish
+        run: npx cap add android
+
+      - name: Capacitor'ni sinxronlash
+        run: npx cap sync android
+
+      - name: gradlew'ga ruxsat berish
+        run: chmod +x android/gradlew
+
+      - name: APK yasash
+        run: cd android && ./gradlew assembleDebug
+
+      - name: APK'ni yuklab olish uchun saqlash
+        uses: actions/upload-artifact@v4
+        with:
+          name: qarz-daftari-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
