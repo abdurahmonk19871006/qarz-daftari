@@ -1,6 +1,6 @@
 {
   "appId": "com.qarzdaftari.app",
-  "appName": "Qarz Daftari",
+  "appName": "Qarz Daftari buzilgan",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"
