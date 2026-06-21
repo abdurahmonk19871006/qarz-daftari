@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { storage } from "./storage.js";
+import { App as CapacitorApp } from "@capacitor/app";
 
 /* ═══ HELPERS ═══ */
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
@@ -10,6 +11,7 @@ const dateFmt = (d) => { if(!d)return""; const[y,m,day]=d.split("-"); return`${d
 const getBal = (cid,txs) => txs.filter(t=>t.contactId===cid).reduce((s,t)=>t.type==="zaym"?s+t.amount:s-t.amount,0);
 const PAL = ["#6366F1","#F59E0B","#10B981","#8B5CF6","#3B82F6","#EC4899","#14B8A6","#F97316","#EF4444","#06B6D4"];
 const randColor = () => PAL[Math.floor(Math.random()*PAL.length)];
+const applyOp = (a,b,op) => { const r = op==="+"?a+b:op==="-"?a-b:op==="×"?a*b:(b!==0?a/b:0); return Math.round(r*1e6)/1e6; };
 
 const Avt = ({contact,size}) => contact.photo
   ? <img src={contact.photo} style={{width:size,height:size,borderRadius:"50%",objectFit:"cover",display:"block",flexShrink:0}}/>
@@ -290,6 +292,7 @@ export default function QarzDaftari() {
   const [showRem,   setShowRem]   = useState(false);
   const [period,    setPeriod]    = useState("monthly");
   const [cDisp,setCDisp]=useState("0"),[cPrev,setCPrev]=useState(null),[cOp,setCOp]=useState(null),[cFresh,setCFresh]=useState(true),[cExpr,setCExpr]=useState("");
+  const [cLastOp,setCLastOp]=useState(null),[cLastVal,setCLastVal]=useState(null);
 
   /* storage */
   useEffect(()=>{
@@ -303,6 +306,20 @@ export default function QarzDaftari() {
   useEffect(()=>{if(loaded)storage.set("c",JSON.stringify(contacts)).catch(()=>{});},[contacts,loaded]);
   useEffect(()=>{if(loaded)storage.set("t",JSON.stringify(txs)).catch(()=>{});},[txs,loaded]);
   useEffect(()=>{if(loaded)storage.set("r",JSON.stringify(rems)).catch(()=>{});},[rems,loaded]);
+
+  /* Android orqaga tugmasi: ilovani yopish o'rniga ichkarida orqaga qaytaradi */
+  useEffect(()=>{
+    const listenerPromise = CapacitorApp.addListener("backButton", () => {
+      if (editContact !== null) { setEditContact(null); return; }
+      if (addTx)      { setAddTx(null); return; }
+      if (addQuickTx) { setAddQuickTx(false); return; }
+      if (showRem)    { setShowRem(false); return; }
+      if (selId)      { setSelId(null); return; }
+      if (tab !== "qarzlar") { setTab("qarzlar"); return; }
+      CapacitorApp.exitApp();
+    });
+    return () => { listenerPromise.then(h => h.remove()).catch(()=>{}); };
+  }, [editContact, addTx, addQuickTx, showRem, selId, tab]);
 
   /* computed */
   const cwb = useMemo(()=>contacts.map(c=>{
@@ -357,16 +374,39 @@ export default function QarzDaftari() {
     setAddQuickTx(false);
   };
 
-  /* calc */
+  /* calc — to'liq qaytadan yozilgan: zanjirli amallar (5+3+2=) endi to'g'ri ishlaydi */
   const calc=key=>{
-    if(key==="C"){setCDisp("0");setCPrev(null);setCOp(null);setCFresh(true);setCExpr("");return;}
+    if(key==="C"){setCDisp("0");setCPrev(null);setCOp(null);setCFresh(true);setCExpr("");setCLastOp(null);setCLastVal(null);return;}
     if(key==="±"){setCDisp(d=>d.startsWith("-")?d.slice(1):d==="0"?"0":"-"+d);return;}
-    if(key==="%"){setCDisp(d=>String(Math.round(parseFloat(d)/100*10000)/10000));return;}
-    if(["+","-","×","÷"].includes(key)){const v=parseFloat(cDisp);setCPrev(v);setCOp(key);setCFresh(true);setCExpr(numFmt(v)+" "+key);return;}
-    if(key==="="){if(!cOp||cPrev===null)return;const c=parseFloat(cDisp);const r=cOp==="+"?cPrev+c:cOp==="-"?cPrev-c:cOp==="×"?cPrev*c:c?cPrev/c:0;setCDisp(String(Math.round(r*10000)/10000));setCPrev(null);setCOp(null);setCFresh(true);setCExpr("");return;}
-    if(key==="⌫"){setCDisp(d=>d.length>1?d.slice(0,-1):"0");return;}
+    if(key==="%"){setCDisp(d=>{const n=parseFloat(d);return isNaN(n)?d:String(n/100);});return;}
+    if(["+","-","×","÷"].includes(key)){
+      const cur=parseFloat(cDisp)||0;
+      if(cOp!==null&&!cFresh){
+        const result=applyOp(cPrev,cur,cOp);
+        setCPrev(result);setCDisp(String(result));setCExpr(numFmt(result)+" "+key);
+      }else{
+        setCPrev(cur);setCExpr(numFmt(cur)+" "+key);
+      }
+      setCOp(key);setCFresh(true);setCLastOp(null);setCLastVal(null);
+      return;
+    }
+    if(key==="="){
+      const cur=parseFloat(cDisp)||0;
+      if(cOp!==null&&cPrev!==null){
+        const result=applyOp(cPrev,cur,cOp);
+        setCDisp(String(result));setCLastOp(cOp);setCLastVal(cur);setCPrev(null);setCOp(null);setCFresh(true);setCExpr("");
+      }else if(cLastOp!==null&&cLastVal!==null){
+        const result=applyOp(cur,cLastVal,cLastOp);
+        setCDisp(String(result));setCFresh(true);
+      }
+      return;
+    }
+    if(key==="⌫"){
+      setCDisp(d=>{const neg=d.startsWith("-");const body=neg?d.slice(1):d;if(body.length<=1)return"0";const next=body.slice(0,-1);return neg?"-"+next:next;});
+      return;
+    }
     if(key==="."){if(cFresh){setCDisp("0.");setCFresh(false);return;}if(!cDisp.includes("."))setCDisp(d=>d+".");return;}
-    if(cFresh){setCDisp(key);setCFresh(false);}else setCDisp(d=>d==="0"?key:d.length<14?d+key:d);
+    if(cFresh){setCDisp(key);setCFresh(false);setCLastOp(null);setCLastVal(null);}else setCDisp(d=>d==="0"?key:d.length<14?d+key:d);
   };
   const cFmt=()=>{const n=parseFloat(cDisp);if(isNaN(n))return cDisp;const hasDot=cDisp.includes(".");const dec=hasDot?cDisp.split(".")[1]:null;const ip=Math.floor(Math.abs(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g," ");return(n<0?"-":"")+ip+(dec!==null?"."+dec:"");};
   const cFS=()=>{const l=cFmt().length;return l<=8?40:l<=12?30:l<=16?22:18;};
