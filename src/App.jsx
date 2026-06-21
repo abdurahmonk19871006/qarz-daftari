@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { storage } from "./storage.js";
 import { App as CapacitorApp } from "@capacitor/app";
+import { exportBackup, readBackupFile, exportCSV, exportPDF } from "./exportUtils.js";
 
 /* ═══ HELPERS ═══ */
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
@@ -12,6 +13,8 @@ const getBal = (cid,txs) => txs.filter(t=>t.contactId===cid).reduce((s,t)=>t.typ
 const PAL = ["#6366F1","#F59E0B","#10B981","#8B5CF6","#3B82F6","#EC4899","#14B8A6","#F97316","#EF4444","#06B6D4"];
 const randColor = () => PAL[Math.floor(Math.random()*PAL.length)];
 const applyOp = (a,b,op) => { const r = op==="+"?a+b:op==="-"?a-b:op==="×"?a*b:(b!==0?a/b:0); return Math.round(r*1e6)/1e6; };
+const TX_LABEL = { qarz: "Qarzini qaytardi", zaym: "Qarzga oldi" };
+const TX_TAG   = { qarz: "🔴 Qaytarildi", zaym: "💚 Qarzga oldi" };
 
 const Avt = ({contact,size}) => contact.photo
   ? <img src={contact.photo} style={{width:size,height:size,borderRadius:"50%",objectFit:"cover",display:"block",flexShrink:0}}/>
@@ -24,11 +27,13 @@ const LabelChip = ({label,style}) => label
 const IS = {width:"100%",padding:"12px 14px",background:"#0B0B10",border:"1px solid #222230",borderRadius:10,color:"#F1F5F9",fontSize:16,outline:"none",boxSizing:"border-box",marginTop:6,display:"block"};
 
 /* ═══ CONTACT MODAL ═══ */
-function ContactModal({contact,onSave,onClose}) {
+function ContactModal({contact,onSave,onClose,allFolders=[]}) {
   const [name,   setName]   = useState(contact?.name||"");
   const [surname,setSurname]= useState(contact?.surname||"");
   const [phone,  setPhone]  = useState(contact?.phone||"");
   const [label,  setLabel]  = useState(contact?.label||"");
+  const [folder, setFolder] = useState(contact?.folder||"");
+  const [dueDate,setDueDate]= useState(contact?.dueDate||"");
   const [color,  setColor]  = useState(contact?.color||randColor());
   const [photo,  setPhoto]  = useState(contact?.photo||null);
   const [hover,  setHover]  = useState(false);
@@ -74,9 +79,21 @@ function ContactModal({contact,onSave,onClose}) {
         <input value={surname} onChange={e=>setSurname(e.target.value)} placeholder="Familiyasi" style={IS}/>
         <label style={{fontSize:12,color:"#6B7280",textTransform:"uppercase",letterSpacing:1,marginTop:14,display:"block"}}>Belgi</label>
         <input value={label} onChange={e=>setLabel(e.target.value)} placeholder="qo'shni, tog'a, ishchi, do'st..." style={IS}/>
+        <label style={{fontSize:12,color:"#6B7280",textTransform:"uppercase",letterSpacing:1,marginTop:14,display:"block"}}>Papka (guruh)</label>
+        <input value={folder} onChange={e=>setFolder(e.target.value)} placeholder="masalan: Mijozlar, Qarindoshlar..." style={IS}/>
+        {allFolders.length>0&&(
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:8}}>
+            {allFolders.map(f=>(
+              <button key={f} onClick={()=>setFolder(f)} style={{padding:"5px 11px",background:folder===f?"#6366F1":"#0B0B10",color:folder===f?"#fff":"#818CF8",border:"1px solid "+(folder===f?"#6366F1":"#222230"),borderRadius:7,cursor:"pointer",fontSize:12,fontWeight:600}}>📁 {f}</button>
+            ))}
+          </div>
+        )}
         <label style={{fontSize:12,color:"#6B7280",textTransform:"uppercase",letterSpacing:1,marginTop:14,display:"block"}}>Telefon</label>
         <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+998 XX XXX XX XX" type="tel" style={IS}/>
-        <button onClick={()=>{if(ok)onSave({...contact,name:name.trim(),surname:surname.trim(),phone:phone.trim(),label:label.trim(),color,photo});}}
+        <label style={{fontSize:12,color:"#6B7280",textTransform:"uppercase",letterSpacing:1,marginTop:14,display:"block"}}>To'lov muddati (ixtiyoriy)</label>
+        <input value={dueDate} onChange={e=>setDueDate(e.target.value)} type="date" style={{...IS,colorScheme:"dark"}}/>
+        <div style={{fontSize:11,color:"#3A3A4A",marginTop:4,paddingLeft:2}}>Belgilansa, muddat o'tganda "Qarzlar" bo'limida ko'rinadi</div>
+        <button onClick={()=>{if(ok)onSave({...contact,name:name.trim(),surname:surname.trim(),phone:phone.trim(),label:label.trim(),folder:folder.trim(),dueDate,color,photo});}}
           style={{width:"100%",padding:"15px",background:ok?"#6366F1":"#1E1E2A",color:"#fff",border:"none",borderRadius:12,fontWeight:700,cursor:ok?"pointer":"default",fontSize:16,marginTop:20}}>
           {isEdit?"Saqlash":"Qo'shish"}
         </button>
@@ -103,7 +120,7 @@ function TransactionModal({initial,contact,onSave,onClose}) {
           <button onClick={onClose} style={{background:"none",border:"none",color:"#6B7280",fontSize:26,cursor:"pointer",lineHeight:1,padding:"0 4px"}}>×</button>
         </div>
         <div style={{display:"flex",background:"#0B0B10",borderRadius:10,padding:4,marginBottom:20}}>
-          {[["qarz","− Qarz olish","#EF4444"],["zaym","+ Zaym berish","#22C55E"]].map(([t,l,c])=>(
+          {[["qarz","− "+TX_LABEL.qarz,"#EF4444"],["zaym","+ "+TX_LABEL.zaym,"#22C55E"]].map(([t,l,c])=>(
             <button key={t} onClick={()=>setType(t)} style={{flex:1,padding:"11px",background:type===t?c:"transparent",color:type===t?"#fff":"#6B7280",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:14,transition:"all 0.15s"}}>{l}</button>
           ))}
         </div>
@@ -117,7 +134,7 @@ function TransactionModal({initial,contact,onSave,onClose}) {
         <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Ixtiyoriy izoh..." style={IS}/>
         <button onClick={()=>{if(ok)onSave({contactId:initial.contactId,type,amount:amt,note,date});}}
           style={{width:"100%",padding:"15px",background:ok?(type==="zaym"?"#22C55E":"#EF4444"):"#1E1E2A",color:"#fff",border:"none",borderRadius:12,fontWeight:700,cursor:ok?"pointer":"default",fontSize:16,marginTop:20}}>
-          {type==="zaym"?"Zaym berish":"Qarz olish"}
+          {type==="zaym"?TX_LABEL.zaym:TX_LABEL.qarz}
         </button>
       </div>
     </div>
@@ -222,7 +239,7 @@ function QuickAddModal({cwb, onSave, onClose}) {
           </div>
 
           <div style={{display:"flex",background:"#0B0B10",borderRadius:10,padding:4,marginBottom:20}}>
-            {[["qarz","− Qarz olish","#EF4444"],["zaym","+ Zaym berish","#22C55E"]].map(([t,l,c])=>(
+            {[["qarz","− "+TX_LABEL.qarz,"#EF4444"],["zaym","+ "+TX_LABEL.zaym,"#22C55E"]].map(([t,l,c])=>(
               <button key={t} onClick={()=>setType(t)} style={{flex:1,padding:"11px",background:type===t?c:"transparent",color:type===t?"#fff":"#6B7280",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:14,transition:"all 0.15s"}}>{l}</button>
             ))}
           </div>
@@ -239,7 +256,7 @@ function QuickAddModal({cwb, onSave, onClose}) {
           <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Ixtiyoriy izoh..." style={IS}/>
 
           <button onClick={handleSave} style={{width:"100%",padding:"15px",background:txOk?(type==="zaym"?"#22C55E":"#EF4444"):"#1E1E2A",color:"#fff",border:"none",borderRadius:12,fontWeight:700,cursor:txOk?"pointer":"default",fontSize:16,marginTop:20}}>
-            {type==="zaym"?"Zaym berish":"Qarz olish"}
+            {type==="zaym"?TX_LABEL.zaym:TX_LABEL.qarz}
           </button>
         </div>
       </div>
@@ -285,6 +302,7 @@ export default function QarzDaftari() {
   const [filter,    setFilter]    = useState("all");
   const [kSearch,   setKSearch]   = useState("");
   const [kSortBy,   setKSortBy]   = useState("name");
+  const [kFolder,   setKFolder]   = useState("");
   const [selId,     setSelId]     = useState(null);
   const [editContact,setEditContact]=useState(null);
   const [addTx,     setAddTx]     = useState(null);
@@ -340,8 +358,21 @@ export default function QarzDaftari() {
   const kFiltered = useMemo(()=>{
     let list=cwb;
     if(kSearch){const q=kSearch.toLowerCase();list=list.filter(c=>c.name.toLowerCase().includes(q)||c.surname.toLowerCase().includes(q)||c.phone.includes(q)||(c.label||"").toLowerCase().includes(q));}
+    if(kFolder)list=list.filter(c=>(c.folder||"")===kFolder);
     return[...list].sort((a,b)=>kSortBy==="name"?(a.name+" "+a.surname).localeCompare(b.name+" "+b.surname):kSortBy==="amount"?Math.abs(b.balance)-Math.abs(a.balance):b.lastDate.localeCompare(a.lastDate));
-  },[cwb,kSearch,kSortBy]);
+  },[cwb,kSearch,kSortBy,kFolder]);
+
+  const allFolders = useMemo(()=>{
+    const set=new Set();
+    contacts.forEach(c=>{if(c.folder&&c.folder.trim())set.add(c.folder.trim());});
+    return[...set].sort((a,b)=>a.localeCompare(b));
+  },[contacts]);
+
+  const overdueContacts = useMemo(()=>{
+    const today=todayStr();
+    return cwb.filter(c=>c.balance!==0&&c.dueDate&&c.dueDate<today)
+      .sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+  },[cwb]);
 
   const totalZ=useMemo(()=>txs.filter(t=>t.type==="zaym").reduce((s,t)=>s+t.amount,0),[txs]);
   const totalQ=useMemo(()=>txs.filter(t=>t.type==="qarz").reduce((s,t)=>s+t.amount,0),[txs]);
@@ -372,6 +403,47 @@ export default function QarzDaftari() {
     else{cid=contact.id;}
     setTxs(ts=>[...ts,{...tx,contactId:cid,id:uid()}]);
     setAddQuickTx(false);
+  };
+
+  /* zaxira (backup) va eksport */
+  const [exportBusy, setExportBusy] = useState(null); // "backup" | "csv" | "pdf" | "restore" | null
+  const restoreInputRef = useRef();
+
+  const handleExportBackup = async () => {
+    setExportBusy("backup");
+    try { await exportBackup(contacts, txs, rems); }
+    catch(e) { alert("Zaxiralashda xatolik: " + (e?.message || e)); }
+    setExportBusy(null);
+  };
+
+  const handleRestoreFile = async (e) => {
+    const file = e.target.files[0]; if(!file) return;
+    try {
+      const data = await readBackupFile(file);
+      if (!window.confirm(`Zaxiradan tiklanadi:\n${data.contacts.length} ta kontakt, ${data.txs.length} ta tranzaksiya.\n\nHozirgi barcha ma'lumotlar O'CHIRILADI va zaxiradagisi bilan almashtiriladi. Davom etasizmi?`)) { e.target.value=""; return; }
+      setContacts(data.contacts); setTxs(data.txs); setRems(data.rems || []);
+      alert("Zaxiradan muvaffaqiyatli tiklandi.");
+    } catch(err) {
+      alert("Faylni o'qib bo'lmadi: " + (err?.message || err));
+    }
+    e.target.value = "";
+  };
+
+  const handleExportCSV = async () => {
+    setExportBusy("csv");
+    try { await exportCSV(contacts, txs); }
+    catch(e) { alert("CSV yasashda xatolik: " + (e?.message || e)); }
+    setExportBusy(null);
+  };
+
+  const handleExportPDF = async () => {
+    setExportBusy("pdf");
+    try {
+      const net = totalZ - totalQ;
+      const topContacts = [...cwb].filter(c=>c.balance!==0).sort((a,b)=>Math.abs(b.balance)-Math.abs(a.balance)).slice(0,10);
+      await exportPDF({ totalZ, totalQ, net, topContacts, numFmt });
+    } catch(e) { alert("PDF yasashda xatolik: " + (e?.message || e)); }
+    setExportBusy(null);
   };
 
   /* calc — to'liq qaytadan yozilgan: zanjirli amallar (5+3+2=) endi to'g'ri ishlaydi */
@@ -454,8 +526,8 @@ export default function QarzDaftari() {
         </div>
       </div>
       <div style={{padding:"12px 16px",display:"flex",gap:10}}>
-        <button onClick={()=>setAddTx({contactId:selId,type:"qarz"})} style={{flex:1,padding:"14px",background:"#2D1B1B",border:"1px solid #7F1D1D",color:"#F87171",borderRadius:14,fontWeight:700,cursor:"pointer",fontSize:15}}>− Qarz olish</button>
-        <button onClick={()=>setAddTx({contactId:selId,type:"zaym"})} style={{flex:1,padding:"14px",background:"#1B2D1B",border:"1px solid #14532D",color:"#4ADE80",borderRadius:14,fontWeight:700,cursor:"pointer",fontSize:15}}>+ Zaym berish</button>
+        <button onClick={()=>setAddTx({contactId:selId,type:"qarz"})} style={{flex:1,padding:"14px",background:"#2D1B1B",border:"1px solid #7F1D1D",color:"#F87171",borderRadius:14,fontWeight:700,cursor:"pointer",fontSize:15}}>− {TX_LABEL.qarz}</button>
+        <button onClick={()=>setAddTx({contactId:selId,type:"zaym"})} style={{flex:1,padding:"14px",background:"#1B2D1B",border:"1px solid #14532D",color:"#4ADE80",borderRadius:14,fontWeight:700,cursor:"pointer",fontSize:15}}>+ {TX_LABEL.zaym}</button>
       </div>
       <div style={{padding:"4px 16px 100px"}}>
         <div style={{color:"#4B5563",fontSize:11,textTransform:"uppercase",letterSpacing:1,marginBottom:12,paddingLeft:2}}>TRANZAKSIYALAR</div>
@@ -469,13 +541,13 @@ export default function QarzDaftari() {
                 <div style={{fontSize:12,color:"#6B7280",flexShrink:0}}>{dateFmt(tx.date)}</div>
               </div>
               {tx.note&&<div style={{fontSize:13,color:"#9CA3AF",marginTop:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tx.note}</div>}
-              <div style={{fontSize:11,color:"#374151",marginTop:3}}>{tx.type==="zaym"?"💚 Zaym":"🔴 Qarz"}</div>
+              <div style={{fontSize:11,color:"#374151",marginTop:3}}>{tx.type==="zaym"?TX_TAG.zaym:TX_TAG.qarz}</div>
             </div>
             <button onClick={()=>{if(window.confirm("Tranzaksiyani o'chirasizmi?"))delTx(tx.id);}} style={{background:"none",border:"none",color:"#374151",cursor:"pointer",fontSize:18,flexShrink:0,padding:4,lineHeight:1}}>✕</button>
           </div>
         ))}
       </div>
-      {editContact&&<ContactModal contact={editContact} onSave={saveContact} onClose={()=>setEditContact(null)}/>}
+      {editContact&&<ContactModal contact={editContact} onSave={saveContact} onClose={()=>setEditContact(null)} allFolders={allFolders}/>}
       {addTx&&<TransactionModal initial={addTx} contact={selContact} onSave={addTxFn} onClose={()=>setAddTx(null)}/>}
     </div>
   );
@@ -489,12 +561,15 @@ export default function QarzDaftari() {
       </div>
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontWeight:600,fontSize:15,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name} {c.surname}</div>
-        {c.label&&<LabelChip label={c.label} style={{marginTop:4}}/>}
-        <div style={{color:"#4B5563",fontSize:12,marginTop:c.label?4:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.phone}</div>
+        <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:c.label||c.folder?4:0}}>
+          {c.label&&<LabelChip label={c.label}/>}
+          {c.folder&&<div style={{fontSize:11,color:"#6B7280",background:"#1A1A28",borderRadius:5,padding:"2px 8px"}}>📁 {c.folder}</div>}
+        </div>
+        <div style={{color:"#4B5563",fontSize:12,marginTop:(c.label||c.folder)?4:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.phone}</div>
       </div>
       <div style={{textAlign:"right",flexShrink:0}}>
         {c.balance!==0
-          ?<><div style={{fontSize:14,fontWeight:700,color:c.balance>=0?"#4ADE80":"#F87171"}}>{c.balance>=0?"+":"-"}{numFmt(c.balance)}</div><div style={{fontSize:11,color:"#4B5563",marginTop:3}}>{dateFmt(c.lastDate)}</div></>
+          ?<><div style={{fontSize:14,fontWeight:700,color:c.balance>=0?"#4ADE80":"#F87171"}}>{c.balance>=0?"+":"-"}{numFmt(c.balance)}</div><div style={{fontSize:11,color:c.dueDate&&c.dueDate<todayStr()?"#F87171":"#4B5563",marginTop:3}}>{c.dueDate&&c.dueDate<todayStr()?"⏰ "+dateFmt(c.dueDate):dateFmt(c.lastDate)}</div></>
           :<div style={{fontSize:11,color:"#374151"}}>Hisob-kitob yo'q</div>}
       </div>
     </div>
@@ -503,6 +578,24 @@ export default function QarzDaftari() {
   /* ═══ TAB: QARZLAR ═══ */
   const renderQarzlar = () => (
     <div style={{padding:"12px 16px 100px"}}>
+      {overdueContacts.length>0&&(
+        <div style={{marginBottom:14}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8,paddingLeft:2}}>
+            <span style={{fontSize:13}}>⏰</span>
+            <span style={{fontSize:11,color:"#F87171",textTransform:"uppercase",letterSpacing:1,fontWeight:700}}>Muddati o'tgan qarzlar ({overdueContacts.length})</span>
+          </div>
+          {overdueContacts.map(c=>(
+            <div key={c.id} onClick={()=>setSelId(c.id)} style={{background:"#1F0D0D",borderRadius:14,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:12,cursor:"pointer",border:"1px solid #7F1D1D"}}>
+              <Avt contact={c} size={42}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:600,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name} {c.surname}</div>
+                <div style={{fontSize:11,color:"#F87171",marginTop:2}}>Muddat: {dateFmt(c.dueDate)} dan o'tgan</div>
+              </div>
+              <div style={{fontSize:14,fontWeight:700,color:c.balance>=0?"#4ADE80":"#F87171",flexShrink:0}}>{c.balance>=0?"+":"-"}{numFmt(c.balance)}</div>
+            </div>
+          ))}
+        </div>
+      )}
       <div style={{position:"relative",marginBottom:10}}>
         <span style={{position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",color:"#6B7280",fontSize:15,pointerEvents:"none"}}>🔍</span>
         <input value={qSearch} onChange={e=>setQSearch(e.target.value)} placeholder="Qidirish (isim, belgi...)" style={{...IS,paddingLeft:38,marginTop:0}}/>
@@ -550,6 +643,14 @@ export default function QarzDaftari() {
           <input value={kSearch} onChange={e=>setKSearch(e.target.value)} placeholder="Qidirish (isim, belgi...)" style={{...IS,paddingLeft:38,marginTop:0}}/>
           {kSearch&&<button onClick={()=>setKSearch("")} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#6B7280",cursor:"pointer",fontSize:20,lineHeight:1}}>×</button>}
         </div>
+        {allFolders.length>0&&(
+          <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+            <button onClick={()=>setKFolder("")} style={{padding:"6px 12px",background:kFolder===""?"#6366F1":"#16161F",color:kFolder===""?"#fff":"#6B7280",border:kFolder===""?"none":"1px solid #222230",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:kFolder===""?700:400}}>Barcha papkalar</button>
+            {allFolders.map(f=>(
+              <button key={f} onClick={()=>setKFolder(f)} style={{padding:"6px 12px",background:kFolder===f?"#6366F1":"#16161F",color:kFolder===f?"#fff":"#818CF8",border:kFolder===f?"none":"1px solid #222230",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:kFolder===f?700:400}}>📁 {f}</button>
+            ))}
+          </div>
+        )}
         <div style={{display:"flex",gap:6,marginBottom:14}}>
           {[["name","🔤 A-Z"],["date","📅 Sana"],["amount","💰 Miqdor"]].map(([k,l])=>(
             <button key={k} onClick={()=>setKSortBy(k)} style={{flex:1,padding:"7px 2px",background:"none",color:kSortBy===k?"#818CF8":"#4B5563",border:kSortBy===k?"1px solid #818CF8":"1px solid #222230",borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:kSortBy===k?700:400,transition:"all 0.15s"}}>{l}</button>
@@ -627,6 +728,14 @@ export default function QarzDaftari() {
     const top5=[...cwb].filter(c=>c.balance!==0).sort((a,b)=>Math.abs(b.balance)-Math.abs(a.balance)).slice(0,5);
     return(
       <div style={{padding:"12px 16px 100px"}}>
+        <div style={{display:"flex",gap:8,marginBottom:14}}>
+          <button onClick={handleExportPDF} disabled={!!exportBusy} style={{flex:1,padding:"11px",background:"#16161F",border:"1px solid #222230",color:"#F87171",borderRadius:10,cursor:exportBusy?"default":"pointer",fontSize:13,fontWeight:700,opacity:exportBusy&&exportBusy!=="pdf"?0.4:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+            📄 {exportBusy==="pdf"?"...":"PDF"}
+          </button>
+          <button onClick={handleExportCSV} disabled={!!exportBusy} style={{flex:1,padding:"11px",background:"#16161F",border:"1px solid #222230",color:"#4ADE80",borderRadius:10,cursor:exportBusy?"default":"pointer",fontSize:13,fontWeight:700,opacity:exportBusy&&exportBusy!=="csv"?0.4:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+            📊 {exportBusy==="csv"?"...":"CSV"}
+          </button>
+        </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
           <div style={{background:"#0D1F0D",borderRadius:14,padding:"14px",border:"1px solid #14532D"}}><div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Zaymlar (menga)</div><div style={{fontSize:16,fontWeight:800,color:"#4ADE80",marginTop:6,lineHeight:1.2}}>+{numFmt(totalZ)}</div></div>
           <div style={{background:"#1F0D0D",borderRadius:14,padding:"14px",border:"1px solid #7F1D1D"}}><div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Qarzlar (ularga)</div><div style={{fontSize:16,fontWeight:800,color:"#F87171",marginTop:6,lineHeight:1.2}}>-{numFmt(totalQ)}</div></div>
@@ -639,8 +748,8 @@ export default function QarzDaftari() {
         </div>
         <div style={{background:"#16161F",borderRadius:14,padding:"14px 4px 12px",marginBottom:14,border:"1px solid #222230"}}>
           <div style={{fontSize:10,color:"#4B5563",paddingLeft:12,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>QARZ / ZAYM (mln So')</div>
-          <ResponsiveContainer width="100%" height={160}><BarChart data={statsData} barCategoryGap="30%" barGap={3}><CartesianGrid strokeDasharray="3 3" stroke="#1A1A28" vertical={false}/><XAxis dataKey="name" tick={{fontSize:9,fill:"#4B5563"}} axisLine={false} tickLine={false}/><YAxis tick={{fontSize:9,fill:"#4B5563"}} axisLine={false} tickLine={false} width={26}/><Tooltip contentStyle={{background:"#16161F",border:"1px solid #222230",borderRadius:8,color:"#F1F5F9",fontSize:11}} formatter={(v,n)=>[v.toFixed(1)+" mln",n==="qarz"?"Qarz":"Zaym"]}/><Bar dataKey="qarz" fill="#EF4444" radius={[4,4,0,0]}/><Bar dataKey="zaym" fill="#22C55E" radius={[4,4,0,0]}/></BarChart></ResponsiveContainer>
-          <div style={{display:"flex",justifyContent:"center",gap:20,marginTop:6}}>{[["#EF4444","Qarz"],["#22C55E","Zaym"]].map(([c,l])=><div key={l} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#6B7280"}}><div style={{width:10,height:10,borderRadius:2,background:c}}/>{l}</div>)}</div>
+          <ResponsiveContainer width="100%" height={160}><BarChart data={statsData} barCategoryGap="30%" barGap={3}><CartesianGrid strokeDasharray="3 3" stroke="#1A1A28" vertical={false}/><XAxis dataKey="name" tick={{fontSize:9,fill:"#4B5563"}} axisLine={false} tickLine={false}/><YAxis tick={{fontSize:9,fill:"#4B5563"}} axisLine={false} tickLine={false} width={26}/><Tooltip contentStyle={{background:"#16161F",border:"1px solid #222230",borderRadius:8,color:"#F1F5F9",fontSize:11}} formatter={(v,n)=>[v.toFixed(1)+" mln",n==="qarz"?TX_LABEL.qarz:TX_LABEL.zaym]}/><Bar dataKey="qarz" fill="#EF4444" radius={[4,4,0,0]}/><Bar dataKey="zaym" fill="#22C55E" radius={[4,4,0,0]}/></BarChart></ResponsiveContainer>
+          <div style={{display:"flex",justifyContent:"center",gap:20,marginTop:6}}>{[["#EF4444",TX_LABEL.qarz],["#22C55E",TX_LABEL.zaym]].map(([c,l])=><div key={l} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#6B7280"}}><div style={{width:10,height:10,borderRadius:2,background:c}}/>{l}</div>)}</div>
         </div>
         <div style={{background:"#16161F",borderRadius:14,padding:"14px 16px",border:"1px solid #222230"}}>
           <div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>TOP KONTAKTLAR</div>
@@ -653,6 +762,20 @@ export default function QarzDaftari() {
               <div style={{fontSize:14,fontWeight:700,color:c.balance>=0?"#4ADE80":"#F87171",flexShrink:0}}>{c.balance>=0?"+":"-"}{numFmt(c.balance)}</div>
             </div>
           ))}
+        </div>
+
+        <div style={{background:"#16161F",borderRadius:14,padding:"14px 16px",border:"1px solid #222230",marginTop:14}}>
+          <div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>ZAXIRA NUSXA</div>
+          <div style={{fontSize:12,color:"#3A3A4A",marginBottom:12}}>Barcha ma'lumotlaringizni faylga saqlang yoki avvalgi zaxiradan tiklang</div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={handleExportBackup} disabled={!!exportBusy} style={{flex:1,padding:"12px",background:"#1B2D1B",border:"1px solid #14532D",color:"#4ADE80",borderRadius:10,cursor:exportBusy?"default":"pointer",fontSize:13,fontWeight:700,opacity:exportBusy&&exportBusy!=="backup"?0.4:1}}>
+              ⬇️ {exportBusy==="backup"?"Saqlanmoqda...":"Zaxiralash"}
+            </button>
+            <button onClick={()=>restoreInputRef.current.click()} disabled={!!exportBusy} style={{flex:1,padding:"12px",background:"#1E1E2A",border:"1px solid #222230",color:"#818CF8",borderRadius:10,cursor:exportBusy?"default":"pointer",fontSize:13,fontWeight:700,opacity:exportBusy?0.4:1}}>
+              ⬆️ Tiklash
+            </button>
+            <input ref={restoreInputRef} type="file" accept="application/json,.json" onChange={handleRestoreFile} style={{display:"none"}}/>
+          </div>
         </div>
       </div>
     );
@@ -729,7 +852,7 @@ export default function QarzDaftari() {
         ))}
       </nav>
 
-      {editContact!==null&&<ContactModal contact={editContact} onSave={saveContact} onClose={()=>setEditContact(null)}/>}
+      {editContact!==null&&<ContactModal contact={editContact} onSave={saveContact} onClose={()=>setEditContact(null)} allFolders={allFolders}/>}
       {addTx&&<TransactionModal initial={addTx} contact={contacts.find(c=>c.id===addTx?.contactId)} onSave={addTxFn} onClose={()=>setAddTx(null)}/>}
       {addQuickTx&&<QuickAddModal cwb={cwb} onSave={handleQuickSave} onClose={()=>setAddQuickTx(false)}/>}
       {showRem&&<ReminderModal contacts={contacts} onSave={saveRem} onClose={()=>setShowRem(false)}/>}
