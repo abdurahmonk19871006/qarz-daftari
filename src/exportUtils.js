@@ -65,7 +65,7 @@ const csvEscape = (v) => {
 };
 
 export async function exportCSV(contacts, txs) {
-  const rows = [["Ism", "Familiya", "Telefon", "Belgi", "Papka", "Sana", "Turi", "Miqdor (So')", "Izoh"]];
+  const rows = [["Ism", "Familiya", "Telefon", "Belgi", "Papka", "Sana", "Turi", "Miqdor (so'm)", "Izoh"]];
   const byId = Object.fromEntries(contacts.map(c => [c.id, c]));
   [...txs].sort((a,b)=>a.date.localeCompare(b.date)).forEach(t => {
     const c = byId[t.contactId];

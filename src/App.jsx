@@ -2,19 +2,21 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { storage } from "./storage.js";
 import { App as CapacitorApp } from "@capacitor/app";
+import { Haptics, ImpactStyle } from "@capacitor/haptics";
 import { exportBackup, readBackupFile, exportCSV, exportPDF } from "./exportUtils.js";
 
 /* ═══ HELPERS ═══ */
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 const todayStr = () => new Date().toISOString().slice(0, 10);
-const numFmt = (n) => Math.abs(Math.round(n||0)).toString().replace(/\B(?=(\d{3})+(?!\d))/g," ") + " So'";
+const numFmt = (n) => Math.abs(Math.round(n||0)).toString().replace(/\B(?=(\d{3})+(?!\d))/g," ") + " so'm";
 const dateFmt = (d) => { if(!d)return""; const[y,m,day]=d.split("-"); return`${day}.${m}.${y}`; };
 const getBal = (cid,txs) => txs.filter(t=>t.contactId===cid).reduce((s,t)=>t.type==="zaym"?s+t.amount:s-t.amount,0);
 const PAL = ["#6366F1","#F59E0B","#10B981","#8B5CF6","#3B82F6","#EC4899","#14B8A6","#F97316","#EF4444","#06B6D4"];
 const randColor = () => PAL[Math.floor(Math.random()*PAL.length)];
+const haptic = (style=ImpactStyle.Light) => { Haptics.impact({style}).catch(()=>{}); };
 const applyOp = (a,b,op) => { const r = op==="+"?a+b:op==="-"?a-b:op==="×"?a*b:(b!==0?a/b:0); return Math.round(r*1e6)/1e6; };
-const TX_LABEL = { qarz: "Qarzini qaytardi", zaym: "Qarzga oldi" };
-const TX_TAG   = { qarz: "🔴 Qaytarildi", zaym: "💚 Qarzga oldi" };
+const TX_LABEL = { zaym: "Qarz",  qarz: "Foyda" };
+const TX_TAG   = { zaym: "💚 Qarz", qarz: "🔴 Foyda" };
 
 const Avt = ({contact,size}) => contact.photo
   ? <img src={contact.photo} style={{width:size,height:size,borderRadius:"50%",objectFit:"cover",display:"block",flexShrink:0}}/>
@@ -120,11 +122,11 @@ function TransactionModal({initial,contact,onSave,onClose}) {
           <button onClick={onClose} style={{background:"none",border:"none",color:"#6B7280",fontSize:26,cursor:"pointer",lineHeight:1,padding:"0 4px"}}>×</button>
         </div>
         <div style={{display:"flex",background:"#0B0B10",borderRadius:10,padding:4,marginBottom:20}}>
-          {[["qarz","− "+TX_LABEL.qarz,"#EF4444"],["zaym","+ "+TX_LABEL.zaym,"#22C55E"]].map(([t,l,c])=>(
+          {[["zaym","+ "+TX_LABEL.zaym,"#22C55E"],["qarz","− "+TX_LABEL.qarz,"#EF4444"]].map(([t,l,c])=>(
             <button key={t} onClick={()=>setType(t)} style={{flex:1,padding:"11px",background:type===t?c:"transparent",color:type===t?"#fff":"#6B7280",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:14,transition:"all 0.15s"}}>{l}</button>
           ))}
         </div>
-        <label style={{fontSize:12,color:"#6B7280",textTransform:"uppercase",letterSpacing:1}}>Miqdor (So') *</label>
+        <label style={{fontSize:12,color:"#6B7280",textTransform:"uppercase",letterSpacing:1}}>Miqdor (so'm) *</label>
         <input value={amtRaw?amtRaw.replace(/\B(?=(\d{3})+(?!\d))/g," "):""} onChange={e=>setAmtRaw(e.target.value.replace(/\D/g,"").slice(0,12))} placeholder="0" inputMode="numeric"
           style={{...IS,fontSize:24,fontWeight:700,color:type==="zaym"?"#4ADE80":"#F87171"}}/>
         {amtRaw&&<div style={{fontSize:12,color:"#4B5563",marginTop:4,paddingLeft:2}}>{numFmt(amt)}</div>}
@@ -194,7 +196,7 @@ function QuickAddModal({cwb, onSave, onClose}) {
         <div style={{overflowY:"auto",flex:1,padding:"0 20px 24px"}}>
           {search&&matched.length===0&&(
             <button onClick={pickNew} style={{width:"100%",padding:"14px",background:"#1B2D1B",border:"1px dashed #14532D",borderRadius:12,color:"#4ADE80",cursor:"pointer",fontSize:14,fontWeight:700,marginBottom:12,textAlign:"left"}}>
-              ✚ &ldquo;{search}&rdquo; — yangi kontakt yaratib qarz/zaym yozish
+              ✚ &ldquo;{search}&rdquo; — yangi kontakt yaratib qarz/foyda yozish
             </button>
           )}
           {matched.map(c=>(
@@ -239,12 +241,12 @@ function QuickAddModal({cwb, onSave, onClose}) {
           </div>
 
           <div style={{display:"flex",background:"#0B0B10",borderRadius:10,padding:4,marginBottom:20}}>
-            {[["qarz","− "+TX_LABEL.qarz,"#EF4444"],["zaym","+ "+TX_LABEL.zaym,"#22C55E"]].map(([t,l,c])=>(
+            {[["zaym","+ "+TX_LABEL.zaym,"#22C55E"],["qarz","− "+TX_LABEL.qarz,"#EF4444"]].map(([t,l,c])=>(
               <button key={t} onClick={()=>setType(t)} style={{flex:1,padding:"11px",background:type===t?c:"transparent",color:type===t?"#fff":"#6B7280",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:14,transition:"all 0.15s"}}>{l}</button>
             ))}
           </div>
 
-          <label style={{fontSize:12,color:"#6B7280",textTransform:"uppercase",letterSpacing:1}}>Miqdor (So') *</label>
+          <label style={{fontSize:12,color:"#6B7280",textTransform:"uppercase",letterSpacing:1}}>Miqdor (so'm) *</label>
           <input value={amtRaw?amtRaw.replace(/\B(?=(\d{3})+(?!\d))/g," "):""} onChange={e=>setAmtRaw(e.target.value.replace(/\D/g,"").slice(0,12))} placeholder="0" inputMode="numeric"
             style={{...IS,fontSize:24,fontWeight:700,color:type==="zaym"?"#4ADE80":"#F87171"}}/>
           {amtRaw&&<div style={{fontSize:12,color:"#4B5563",marginTop:4,paddingLeft:2}}>{numFmt(amt)}</div>}
@@ -327,7 +329,7 @@ function QuickAmountSheet({contact,type,onSave,onClose}) {
             placeholder="0" inputMode="numeric"
             style={{width:"100%",background:"transparent",border:"none",outline:"none",color:color,fontSize:44,fontWeight:800,textAlign:"center",letterSpacing:-1}}/>
           <div style={{height:2,background:bg,borderRadius:2,margin:"4px 28px 0"}}/>
-          <div style={{fontSize:12,color:"#4B5563",marginTop:8}}>So'm</div>
+          <div style={{fontSize:12,color:"#4B5563",marginTop:8}}>so'm</div>
         </div>
 
         {!showMore ? (
@@ -352,6 +354,35 @@ function QuickAmountSheet({contact,type,onSave,onClose}) {
   );
 }
 
+/* ═══ TASDIQLASH OYNASI (window.confirm o'rniga, ilova uslubida) ═══ */
+function ConfirmDialog({title,message,confirmLabel="O'chirish",cancelLabel="Bekor qilish",danger=true,onConfirm,onCancel}) {
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.84)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400,padding:24}} onClick={onCancel}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#16161F",borderRadius:18,padding:"24px 22px",width:"100%",maxWidth:340,boxSizing:"border-box",border:"1px solid #222230"}}>
+        <div style={{fontSize:17,fontWeight:700,color:"#F1F5F9",marginBottom:8}}>{title}</div>
+        <div style={{fontSize:14,color:"#9CA3AF",lineHeight:1.5,marginBottom:22,whiteSpace:"pre-line"}}>{message}</div>
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={onCancel} style={{flex:1,padding:"12px",background:"#1E1E2A",color:"#9CA3AF",border:"none",borderRadius:11,fontWeight:700,cursor:"pointer",fontSize:14}}>{cancelLabel}</button>
+          <button onClick={onConfirm} style={{flex:1,padding:"12px",background:danger?"#EF4444":"#6366F1",color:"#fff",border:"none",borderRadius:11,fontWeight:700,cursor:"pointer",fontSize:14}}>{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══ TOAST (alert() o'rniga, ilova uslubida bildirishnoma) ═══ */
+function Toast({toast}) {
+  if(!toast) return null;
+  const ok = toast.kind!=="error";
+  return (
+    <div style={{position:"fixed",bottom:84,left:"50%",transform:"translateX(-50%)",zIndex:500,maxWidth:440,width:"calc(100% - 32px)",pointerEvents:"none"}}>
+      <div style={{background:ok?"#13241A":"#241313",border:`1px solid ${ok?"#22C55E":"#EF4444"}`,color:"#F1F5F9",borderRadius:13,padding:"13px 16px",fontSize:13,fontWeight:600,boxShadow:"0 10px 30px rgba(0,0,0,0.45)",display:"flex",alignItems:"center",gap:9}}>
+        <span style={{fontSize:15,flexShrink:0}}>{ok?"✅":"⚠️"}</span><span style={{lineHeight:1.4}}>{toast.msg}</span>
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════════════ MAIN APP ═══════════════════ */
 export default function QarzDaftari() {
   const [contacts,  setContacts]  = useState([]);
@@ -370,6 +401,12 @@ export default function QarzDaftari() {
   const [addTx,     setAddTx]     = useState(null);
   const [addQuickTx,setAddQuickTx]= useState(false);
   const [quickAmt,  setQuickAmt]  = useState(null); // {contactId, type} | null
+  const [toast,     setToast]     = useState(null); // {msg, kind} | null
+  const [confirmDlg,setConfirmDlg]= useState(null); // {title,message,onConfirm,danger} | null
+
+  const showToast = (msg, kind="ok") => setToast({msg, kind});
+  useEffect(()=>{ if(!toast) return; const t=setTimeout(()=>setToast(null), 2800); return ()=>clearTimeout(t); }, [toast]);
+  const askConfirm = (title, message, onConfirm, danger=true) => setConfirmDlg({title, message, onConfirm, danger});
   const [showRem,   setShowRem]   = useState(false);
   const [period,    setPeriod]    = useState("monthly");
   const [cDisp,setCDisp]=useState("0"),[cPrev,setCPrev]=useState(null),[cOp,setCOp]=useState(null),[cFresh,setCFresh]=useState(true),[cExpr,setCExpr]=useState("");
@@ -476,8 +513,8 @@ export default function QarzDaftari() {
 
   const handleExportBackup = async () => {
     setExportBusy("backup");
-    try { await exportBackup(contacts, txs, rems); }
-    catch(e) { alert("Zaxiralashda xatolik: " + (e?.message || e)); }
+    try { await exportBackup(contacts, txs, rems); showToast("Zaxira saqlandi va ulashishga tayyor"); }
+    catch(e) { showToast("Zaxiralashda xatolik: " + (e?.message || e), "error"); }
     setExportBusy(null);
   };
 
@@ -485,19 +522,27 @@ export default function QarzDaftari() {
     const file = e.target.files[0]; if(!file) return;
     try {
       const data = await readBackupFile(file);
-      if (!window.confirm(`Zaxiradan tiklanadi:\n${data.contacts.length} ta kontakt, ${data.txs.length} ta tranzaksiya.\n\nHozirgi barcha ma'lumotlar O'CHIRILADI va zaxiradagisi bilan almashtiriladi. Davom etasizmi?`)) { e.target.value=""; return; }
-      setContacts(data.contacts); setTxs(data.txs); setRems(data.rems || []);
-      alert("Zaxiradan muvaffaqiyatli tiklandi.");
+      askConfirm(
+        "Zaxiradan tiklash",
+        `${data.contacts.length} ta kontakt, ${data.txs.length} ta tranzaksiya topildi.\n\nHozirgi barcha ma'lumotlar o'chirilib, ularning o'rniga shular yoziladi. Bu amalni qaytarib bo'lmaydi.`,
+        () => {
+          setContacts(data.contacts); setTxs(data.txs); setRems(data.rems || []);
+          setConfirmDlg(null);
+          showToast("Zaxiradan muvaffaqiyatli tiklandi");
+          haptic();
+        },
+        true
+      );
     } catch(err) {
-      alert("Faylni o'qib bo'lmadi: " + (err?.message || err));
+      showToast("Faylni o'qib bo'lmadi: " + (err?.message || err), "error");
     }
     e.target.value = "";
   };
 
   const handleExportCSV = async () => {
     setExportBusy("csv");
-    try { await exportCSV(contacts, txs); }
-    catch(e) { alert("CSV yasashda xatolik: " + (e?.message || e)); }
+    try { await exportCSV(contacts, txs); showToast("CSV fayl tayyor"); }
+    catch(e) { showToast("CSV yasashda xatolik: " + (e?.message || e), "error"); }
     setExportBusy(null);
   };
 
@@ -507,7 +552,8 @@ export default function QarzDaftari() {
       const net = totalZ - totalQ;
       const topContacts = [...cwb].filter(c=>c.balance!==0).sort((a,b)=>Math.abs(b.balance)-Math.abs(a.balance)).slice(0,10);
       await exportPDF({ totalZ, totalQ, net, topContacts, numFmt });
-    } catch(e) { alert("PDF yasashda xatolik: " + (e?.message || e)); }
+      showToast("PDF fayl tayyor");
+    } catch(e) { showToast("PDF yasashda xatolik: " + (e?.message || e), "error"); }
     setExportBusy(null);
   };
 
@@ -682,19 +728,19 @@ export default function QarzDaftari() {
       </div>
       <div style={{display:"flex",gap:8,marginBottom:14}}>
         <div style={{flex:1,background:"#0D1F0D",borderRadius:12,padding:"11px 13px",border:"1px solid #14532D"}}>
-          <div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Menga (zaym)</div>
+          <div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Qarz berdim</div>
           <div style={{fontSize:14,fontWeight:700,color:"#4ADE80",marginTop:4}}>+{numFmt(totalZ)}</div>
         </div>
         <div style={{flex:1,background:"#1F0D0D",borderRadius:12,padding:"11px 13px",border:"1px solid #7F1D1D"}}>
-          <div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Ularga (qarz)</div>
+          <div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Foyda oldim</div>
           <div style={{fontSize:14,fontWeight:700,color:"#F87171",marginTop:4}}>-{numFmt(totalQ)}</div>
         </div>
       </div>
       {qFiltered.length===0&&(
         <div style={{textAlign:"center",color:"#4B5563",padding:"60px 0"}}>
           <div style={{fontSize:48,marginBottom:12}}>💸</div>
-          <div style={{fontSize:16,marginBottom:6}}>{qSearch||filter!=="all"?"Topilmadi":"Faol qarz yoki zaym yo'q"}</div>
-          <div style={{fontSize:13,color:"#3A3A4A"}}>{qSearch||filter!=="all"?"Boshqa qidiruv kiriting":"+ tugmani bosib qarz/zaym qo'shing"}</div>
+          <div style={{fontSize:16,marginBottom:6}}>{qSearch||filter!=="all"?"Topilmadi":"Faol qarz yoki foyda yo'q"}</div>
+          <div style={{fontSize:13,color:"#3A3A4A"}}>{qSearch||filter!=="all"?"Boshqa qidiruv kiriting":"+ tugmani bosib qarz yoki foyda qo'shing"}</div>
         </div>
       )}
       {qFiltered.map(c=><ContactRow key={c.id} c={c}/>)}
@@ -731,7 +777,7 @@ export default function QarzDaftari() {
             <div style={{fontSize:18,fontWeight:700,color:"#F1F5F9",marginTop:3}}>{cwb.length}</div>
           </div>
           <div style={{flex:1,background:"#16161F",borderRadius:10,padding:"10px 12px",border:"1px solid #222230",textAlign:"center"}}>
-            <div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Faol qarz/zaym</div>
+            <div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Faol qarz/foyda</div>
             <div style={{fontSize:18,fontWeight:700,color:"#818CF8",marginTop:3}}>{cwb.filter(c=>c.balance!==0).length}</div>
           </div>
           <div style={{flex:1,background:"#16161F",borderRadius:10,padding:"10px 12px",border:"1px solid #222230",textAlign:"center"}}>
@@ -806,9 +852,9 @@ export default function QarzDaftari() {
           </button>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
-          <div style={{background:"#0D1F0D",borderRadius:14,padding:"14px",border:"1px solid #14532D"}}><div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Zaymlar (menga)</div><div style={{fontSize:16,fontWeight:800,color:"#4ADE80",marginTop:6,lineHeight:1.2}}>+{numFmt(totalZ)}</div></div>
-          <div style={{background:"#1F0D0D",borderRadius:14,padding:"14px",border:"1px solid #7F1D1D"}}><div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Qarzlar (ularga)</div><div style={{fontSize:16,fontWeight:800,color:"#F87171",marginTop:6,lineHeight:1.2}}>-{numFmt(totalQ)}</div></div>
-          <div style={{background:net>=0?"#0D1F0D":"#1F0D0D",borderRadius:14,padding:"14px",border:`1px solid ${net>=0?"#14532D":"#7F1D1D"}`,gridColumn:"1/-1"}}><div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Net balans</div><div style={{fontSize:24,fontWeight:800,color:net>=0?"#4ADE80":"#F87171",marginTop:6,letterSpacing:-0.5}}>{net>=0?"+":"-"}{numFmt(net)}</div><div style={{fontSize:12,color:"#4B5563",marginTop:4}}>{net>=0?"Ko'proq zaym berdingiz":"Ko'proq qarz oldingiz"}</div></div>
+          <div style={{background:"#0D1F0D",borderRadius:14,padding:"14px",border:"1px solid #14532D"}}><div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Jami qarz</div><div style={{fontSize:16,fontWeight:800,color:"#4ADE80",marginTop:6,lineHeight:1.2}}>+{numFmt(totalZ)}</div></div>
+          <div style={{background:"#1F0D0D",borderRadius:14,padding:"14px",border:"1px solid #7F1D1D"}}><div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Jami foyda</div><div style={{fontSize:16,fontWeight:800,color:"#F87171",marginTop:6,lineHeight:1.2}}>-{numFmt(totalQ)}</div></div>
+          <div style={{background:net>=0?"#0D1F0D":"#1F0D0D",borderRadius:14,padding:"14px",border:`1px solid ${net>=0?"#14532D":"#7F1D1D"}`,gridColumn:"1/-1"}}><div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Net balans</div><div style={{fontSize:24,fontWeight:800,color:net>=0?"#4ADE80":"#F87171",marginTop:6,letterSpacing:-0.5}}>{net>=0?"+":"-"}{numFmt(net)}</div><div style={{fontSize:12,color:"#4B5563",marginTop:4}}>{net>=0?"Ko'proq qarz berdingiz":"Ko'proq foyda oldingiz"}</div></div>
         </div>
         <div style={{display:"flex",background:"#16161F",borderRadius:10,padding:4,marginBottom:12,border:"1px solid #222230"}}>
           {[["daily","Kunlik"],["weekly","Haftalik"],["monthly","Oylik"],["yearly","Yillik"]].map(([k,l])=>(
@@ -816,13 +862,13 @@ export default function QarzDaftari() {
           ))}
         </div>
         <div style={{background:"#16161F",borderRadius:14,padding:"14px 4px 12px",marginBottom:14,border:"1px solid #222230"}}>
-          <div style={{fontSize:10,color:"#4B5563",paddingLeft:12,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>QARZ / ZAYM (mln So')</div>
+          <div style={{fontSize:10,color:"#4B5563",paddingLeft:12,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>QARZ / ZAYM (mln so'm)</div>
           <ResponsiveContainer width="100%" height={160}><BarChart data={statsData} barCategoryGap="30%" barGap={3}><CartesianGrid strokeDasharray="3 3" stroke="#1A1A28" vertical={false}/><XAxis dataKey="name" tick={{fontSize:9,fill:"#4B5563"}} axisLine={false} tickLine={false}/><YAxis tick={{fontSize:9,fill:"#4B5563"}} axisLine={false} tickLine={false} width={26}/><Tooltip contentStyle={{background:"#16161F",border:"1px solid #222230",borderRadius:8,color:"#F1F5F9",fontSize:11}} formatter={(v,n)=>[v.toFixed(1)+" mln",n==="qarz"?TX_LABEL.qarz:TX_LABEL.zaym]}/><Bar dataKey="qarz" fill="#EF4444" radius={[4,4,0,0]}/><Bar dataKey="zaym" fill="#22C55E" radius={[4,4,0,0]}/></BarChart></ResponsiveContainer>
           <div style={{display:"flex",justifyContent:"center",gap:20,marginTop:6}}>{[["#EF4444",TX_LABEL.qarz],["#22C55E",TX_LABEL.zaym]].map(([c,l])=><div key={l} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"#6B7280"}}><div style={{width:10,height:10,borderRadius:2,background:c}}/>{l}</div>)}</div>
         </div>
         <div style={{background:"#16161F",borderRadius:14,padding:"14px 16px",border:"1px solid #222230"}}>
           <div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>TOP KONTAKTLAR</div>
-          {top5.length===0&&<div style={{color:"#4B5563",textAlign:"center",padding:"20px 0"}}>Faol qarz/zaym yo'q</div>}
+          {top5.length===0&&<div style={{color:"#4B5563",textAlign:"center",padding:"20px 0"}}>Faol qarz/foyda yo'q</div>}
           {top5.map((c,i)=>(
             <div key={c.id} onClick={()=>setSelId(c.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:i<top5.length-1?"1px solid #222230":"none",cursor:"pointer"}}>
               <div style={{color:"#4B5563",fontSize:12,fontWeight:700,width:18,flexShrink:0}}>{i+1}.</div>
@@ -904,7 +950,7 @@ export default function QarzDaftari() {
           ))}
         </div>
 
-        {/* Tezkor miqdorlar — qarz/zaym kiritishda tez-tez ishlatiladigan summalar */}
+        {/* Tezkor miqdorlar — qarz/foyda kiritishda tez-tez ishlatiladigan summalar */}
         <div style={{flex:"0 0 auto",margin:"18px 16px 0",padding:"14px",background:"#111114",borderRadius:14,border:"1px solid #1F1F23"}}>
           <div style={{fontSize:10,color:"#52525B",textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Tezkor miqdorlar</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
@@ -939,7 +985,7 @@ export default function QarzDaftari() {
           {tab==="kalkulyator"&&"🧮 Kalkulyator"}
         </div>
         <div style={{display:"flex",gap:8}}>
-          {tab==="qarzlar"&&<button onClick={()=>setAddQuickTx(true)} style={{background:"#6366F1",border:"none",color:"#fff",borderRadius:10,padding:"8px 16px",cursor:"pointer",fontWeight:700,fontSize:14}}>＋ Qarz/Zaym</button>}
+          {tab==="qarzlar"&&<button onClick={()=>setAddQuickTx(true)} style={{background:"#6366F1",border:"none",color:"#fff",borderRadius:10,padding:"8px 16px",cursor:"pointer",fontWeight:700,fontSize:14}}>＋ Qarz / Foyda</button>}
           {tab==="kontaktlar"&&<button onClick={()=>setEditContact({})} style={{background:"#6366F1",border:"none",color:"#fff",borderRadius:10,padding:"8px 16px",cursor:"pointer",fontWeight:700,fontSize:14}}>＋ Yangi</button>}
           {tab==="eslatmalar"&&<button onClick={()=>setShowRem(true)} style={{background:"#6366F1",border:"none",color:"#fff",borderRadius:10,padding:"8px 16px",cursor:"pointer",fontWeight:700,fontSize:14}}>＋ Yangi</button>}
         </div>
