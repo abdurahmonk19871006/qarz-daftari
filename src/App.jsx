@@ -15,8 +15,8 @@ const PAL = ["#6366F1","#F59E0B","#10B981","#8B5CF6","#3B82F6","#EC4899","#14B8A
 const randColor = () => PAL[Math.floor(Math.random()*PAL.length)];
 const haptic = (style=ImpactStyle.Light) => { Haptics.impact({style}).catch(()=>{}); };
 const applyOp = (a,b,op) => { const r = op==="+"?a+b:op==="-"?a-b:op==="×"?a*b:(b!==0?a/b:0); return Math.round(r*1e6)/1e6; };
-const TX_LABEL = { zaym: "Qarz",  qarz: "Foyda" };
-const TX_TAG   = { zaym: "💚 Qarz", qarz: "🔴 Foyda" };
+const TX_LABEL = { zaym: "Qarz berdim", qarz: "Qarz oldim" };
+const TX_TAG   = { zaym: "💚 Qarz berdim", qarz: "🔴 Qarz oldim" };
 
 const Avt = ({contact,size}) => contact.photo
   ? <img src={contact.photo} style={{width:size,height:size,borderRadius:"50%",objectFit:"cover",display:"block",flexShrink:0}}/>
@@ -196,7 +196,7 @@ function QuickAddModal({cwb, onSave, onClose}) {
         <div style={{overflowY:"auto",flex:1,padding:"0 20px 24px"}}>
           {search&&matched.length===0&&(
             <button onClick={pickNew} style={{width:"100%",padding:"14px",background:"#1B2D1B",border:"1px dashed #14532D",borderRadius:12,color:"#4ADE80",cursor:"pointer",fontSize:14,fontWeight:700,marginBottom:12,textAlign:"left"}}>
-              ✚ &ldquo;{search}&rdquo; — yangi kontakt yaratib qarz/foyda yozish
+              ✚ &ldquo;{search}&rdquo; — yangi kontakt yaratib qarz berdim/oldim yozish
             </button>
           )}
           {matched.map(c=>(
@@ -732,15 +732,15 @@ export default function QarzDaftari() {
           <div style={{fontSize:14,fontWeight:700,color:"#4ADE80",marginTop:4}}>+{numFmt(totalZ)}</div>
         </div>
         <div style={{flex:1,background:"#1F0D0D",borderRadius:12,padding:"11px 13px",border:"1px solid #7F1D1D"}}>
-          <div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Foyda oldim</div>
+          <div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Qarz oldim</div>
           <div style={{fontSize:14,fontWeight:700,color:"#F87171",marginTop:4}}>-{numFmt(totalQ)}</div>
         </div>
       </div>
       {qFiltered.length===0&&(
         <div style={{textAlign:"center",color:"#4B5563",padding:"60px 0"}}>
           <div style={{fontSize:48,marginBottom:12}}>💸</div>
-          <div style={{fontSize:16,marginBottom:6}}>{qSearch||filter!=="all"?"Topilmadi":"Faol qarz yoki foyda yo'q"}</div>
-          <div style={{fontSize:13,color:"#3A3A4A"}}>{qSearch||filter!=="all"?"Boshqa qidiruv kiriting":"+ tugmani bosib qarz yoki foyda qo'shing"}</div>
+          <div style={{fontSize:16,marginBottom:6}}>{qSearch||filter!=="all"?"Topilmadi":"Faol qarz yo'q"}</div>
+          <div style={{fontSize:13,color:"#3A3A4A"}}>{qSearch||filter!=="all"?"Boshqa qidiruv kiriting":"+ tugmani bosib qarz berdim / oldim qo'shing"}</div>
         </div>
       )}
       {qFiltered.map(c=><ContactRow key={c.id} c={c}/>)}
@@ -777,7 +777,7 @@ export default function QarzDaftari() {
             <div style={{fontSize:18,fontWeight:700,color:"#F1F5F9",marginTop:3}}>{cwb.length}</div>
           </div>
           <div style={{flex:1,background:"#16161F",borderRadius:10,padding:"10px 12px",border:"1px solid #222230",textAlign:"center"}}>
-            <div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Faol qarz/foyda</div>
+            <div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Faol qarzlar</div>
             <div style={{fontSize:18,fontWeight:700,color:"#818CF8",marginTop:3}}>{cwb.filter(c=>c.balance!==0).length}</div>
           </div>
           <div style={{flex:1,background:"#16161F",borderRadius:10,padding:"10px 12px",border:"1px solid #222230",textAlign:"center"}}>
@@ -852,9 +852,9 @@ export default function QarzDaftari() {
           </button>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
-          <div style={{background:"#0D1F0D",borderRadius:14,padding:"14px",border:"1px solid #14532D"}}><div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Jami qarz</div><div style={{fontSize:16,fontWeight:800,color:"#4ADE80",marginTop:6,lineHeight:1.2}}>+{numFmt(totalZ)}</div></div>
-          <div style={{background:"#1F0D0D",borderRadius:14,padding:"14px",border:"1px solid #7F1D1D"}}><div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Jami foyda</div><div style={{fontSize:16,fontWeight:800,color:"#F87171",marginTop:6,lineHeight:1.2}}>-{numFmt(totalQ)}</div></div>
-          <div style={{background:net>=0?"#0D1F0D":"#1F0D0D",borderRadius:14,padding:"14px",border:`1px solid ${net>=0?"#14532D":"#7F1D1D"}`,gridColumn:"1/-1"}}><div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Net balans</div><div style={{fontSize:24,fontWeight:800,color:net>=0?"#4ADE80":"#F87171",marginTop:6,letterSpacing:-0.5}}>{net>=0?"+":"-"}{numFmt(net)}</div><div style={{fontSize:12,color:"#4B5563",marginTop:4}}>{net>=0?"Ko'proq qarz berdingiz":"Ko'proq foyda oldingiz"}</div></div>
+          <div style={{background:"#0D1F0D",borderRadius:14,padding:"14px",border:"1px solid #14532D"}}><div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Jami qarz berdim</div><div style={{fontSize:16,fontWeight:800,color:"#4ADE80",marginTop:6,lineHeight:1.2}}>+{numFmt(totalZ)}</div></div>
+          <div style={{background:"#1F0D0D",borderRadius:14,padding:"14px",border:"1px solid #7F1D1D"}}><div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Jami qarz oldim</div><div style={{fontSize:16,fontWeight:800,color:"#F87171",marginTop:6,lineHeight:1.2}}>-{numFmt(totalQ)}</div></div>
+          <div style={{background:net>=0?"#0D1F0D":"#1F0D0D",borderRadius:14,padding:"14px",border:`1px solid ${net>=0?"#14532D":"#7F1D1D"}`,gridColumn:"1/-1"}}><div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1}}>Net balans</div><div style={{fontSize:24,fontWeight:800,color:net>=0?"#4ADE80":"#F87171",marginTop:6,letterSpacing:-0.5}}>{net>=0?"+":"-"}{numFmt(net)}</div><div style={{fontSize:12,color:"#4B5563",marginTop:4}}>{net>=0?"Ko'proq qarz berdingiz":"Ko'proq qarz oldingiz"}</div></div>
         </div>
         <div style={{display:"flex",background:"#16161F",borderRadius:10,padding:4,marginBottom:12,border:"1px solid #222230"}}>
           {[["daily","Kunlik"],["weekly","Haftalik"],["monthly","Oylik"],["yearly","Yillik"]].map(([k,l])=>(
@@ -868,7 +868,7 @@ export default function QarzDaftari() {
         </div>
         <div style={{background:"#16161F",borderRadius:14,padding:"14px 16px",border:"1px solid #222230"}}>
           <div style={{fontSize:10,color:"#4B5563",textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>TOP KONTAKTLAR</div>
-          {top5.length===0&&<div style={{color:"#4B5563",textAlign:"center",padding:"20px 0"}}>Faol qarz/foyda yo'q</div>}
+          {top5.length===0&&<div style={{color:"#4B5563",textAlign:"center",padding:"20px 0"}}>Faol qarz yo'q</div>}
           {top5.map((c,i)=>(
             <div key={c.id} onClick={()=>setSelId(c.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:i<top5.length-1?"1px solid #222230":"none",cursor:"pointer"}}>
               <div style={{color:"#4B5563",fontSize:12,fontWeight:700,width:18,flexShrink:0}}>{i+1}.</div>
@@ -950,7 +950,7 @@ export default function QarzDaftari() {
           ))}
         </div>
 
-        {/* Tezkor miqdorlar — qarz/foyda kiritishda tez-tez ishlatiladigan summalar */}
+        {/* Tezkor miqdorlar — qarz berdim/oldim kiritishda tez-tez ishlatiladigan summalar */}
         <div style={{flex:"0 0 auto",margin:"18px 16px 0",padding:"14px",background:"#111114",borderRadius:14,border:"1px solid #1F1F23"}}>
           <div style={{fontSize:10,color:"#52525B",textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Tezkor miqdorlar</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
@@ -985,7 +985,7 @@ export default function QarzDaftari() {
           {tab==="kalkulyator"&&"🧮 Kalkulyator"}
         </div>
         <div style={{display:"flex",gap:8}}>
-          {tab==="qarzlar"&&<button onClick={()=>setAddQuickTx(true)} style={{background:"#6366F1",border:"none",color:"#fff",borderRadius:10,padding:"8px 16px",cursor:"pointer",fontWeight:700,fontSize:14}}>＋ Qarz / Foyda</button>}
+          {tab==="qarzlar"&&<button onClick={()=>setAddQuickTx(true)} style={{background:"#6366F1",border:"none",color:"#fff",borderRadius:10,padding:"8px 16px",cursor:"pointer",fontWeight:700,fontSize:14}}>＋ Qarz berdim / oldim</button>}
           {tab==="kontaktlar"&&<button onClick={()=>setEditContact({})} style={{background:"#6366F1",border:"none",color:"#fff",borderRadius:10,padding:"8px 16px",cursor:"pointer",fontWeight:700,fontSize:14}}>＋ Yangi</button>}
           {tab==="eslatmalar"&&<button onClick={()=>setShowRem(true)} style={{background:"#6366F1",border:"none",color:"#fff",borderRadius:10,padding:"8px 16px",cursor:"pointer",fontWeight:700,fontSize:14}}>＋ Yangi</button>}
         </div>
